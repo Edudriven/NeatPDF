@@ -131,6 +131,9 @@ jobs:
           NEATPDF_INSTALL_MODE: installer
         run: pyinstaller NeatPDF.spec --distpath dist --workpath build/pyinstaller_installer
 
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+
       - name: Build NSIS installer
         run: |
           $tag = "${{ github.ref_name }}"
