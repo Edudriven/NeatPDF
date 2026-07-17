@@ -1,0 +1,11 @@
+PySide6>=6.6,<7
+PyMuPDF>=1.24,<2
+pypdf>=4.0,<5
+Pillow>=10.0,<11
+opencv-python-headless>=4.9,<5
+numpy>=1.26,<2
+pytesseract>=0.3,<1
+pytest>=8.0,<9
+pytest-qt>=4.4,<5
+ruff>=0.4,<1
+pyinstaller>=6.10,<7

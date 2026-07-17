@@ -1,0 +1,183 @@
+name: Build & Release
+
+# Triggers on version tags like v1.0.0
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write   # needed to create GitHub Releases and upload assets
+
+jobs:
+  # ── Linux: AppImage ──────────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux AppImage
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libgl1 libglib2.0-0 libdbus-1-3 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
+            libxkbcommon-x11-0 libegl1 \
+            tesseract-ocr \
+            wget fuse libfuse2
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.10.0
+
+      - name: Build with PyInstaller (AppImage mode)
+        env:
+          NEATPDF_INSTALL_MODE: appimage
+        run: pyinstaller NeatPDF.spec --distpath dist --workpath build/pyinstaller
+
+      - name: Download appimagetool
+        run: |
+          wget -q -O appimagetool \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+      - name: Create AppDir structure
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp -r dist/NeatPDF/* AppDir/usr/bin/
+
+          # Desktop entry
+          cat > AppDir/NeatPDF.desktop << 'EOF'
+          [Desktop Entry]
+          Name=NeatPDF
+          Exec=NeatPDF
+          Icon=neatpdf
+          Type=Application
+          Categories=Office;
+          EOF
+
+          # Icon
+          cp resources/icons/neatpdf_256.png AppDir/neatpdf.png
+
+          # AppRun launcher
+          cat > AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "$HERE/usr/bin/NeatPDF" "$@"
+          APPRUN
+          chmod +x AppDir/AppRun
+
+      - name: Build AppImage
+        run: |
+          TAG="${{ github.ref_name }}"
+          APPIMAGE_NAME="NeatPDF-${TAG}-linux.AppImage"
+          ARCH=x86_64 ./appimagetool AppDir "$APPIMAGE_NAME"
+          echo "APPIMAGE_NAME=$APPIMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: ${{ env.APPIMAGE_NAME }}
+
+  # ── Windows: Installer + Portable ────────────────────────────────────────────
+  build-windows:
+    name: Build Windows (installer + portable)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.10.0
+
+      # ── Portable build ──────────────────────────────────────────────────────
+      - name: Build portable with PyInstaller
+        env:
+          NEATPDF_INSTALL_MODE: portable
+        run: pyinstaller NeatPDF.spec --distpath dist_portable --workpath build/pyinstaller_portable
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $name = "NeatPDF-$tag-windows-portable"
+          Rename-Item dist_portable\NeatPDF $name
+          Compress-Archive -Path "dist_portable\$name" -DestinationPath "$name.zip"
+          echo "PORTABLE_ZIP=$name.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # ── Installer build ─────────────────────────────────────────────────────
+      - name: Build installer with PyInstaller
+        env:
+          NEATPDF_INSTALL_MODE: installer
+        run: pyinstaller NeatPDF.spec --distpath dist --workpath build/pyinstaller_installer
+
+      - name: Build NSIS installer
+        run: |
+          $tag = "${{ github.ref_name }}"
+          # Update version in NSIS script
+          (Get-Content installer\neatpdf_installer.nsi) `
+            -replace '!define APP_VERSION\s+"[^"]+"', "!define APP_VERSION `"$($tag.TrimStart('v'))`"" `
+            | Set-Content installer\neatpdf_installer.nsi
+          # Run NSIS
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer\neatpdf_installer.nsi
+          $exe = "installer\NeatPDF-$($tag.TrimStart('v'))-windows-installer.exe"
+          echo "INSTALLER_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            ${{ env.PORTABLE_ZIP }}
+            ${{ env.INSTALLER_EXE }}
+
+  # ── Create GitHub Release ────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: artifacts/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-builds
+          path: artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "NeatPDF ${{ github.ref_name }}"
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: artifacts/*
