@@ -10,8 +10,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QMenuBar, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QKeySequence, QPixmap
+from PySide6.QtWidgets import QLabel, QMenuBar, QWidget
+
+from config import ICONS_DIR
 
 if TYPE_CHECKING:
     from gui.toolbar import AppToolBar
@@ -33,7 +36,16 @@ class AppMenuBar(QMenuBar):
     def __init__(self, toolbar: "AppToolBar", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._toolbar = toolbar
+        self._build_logo()
         self._build_menus()
+
+    # ── Logo ──────────────────────────────────────────────────────────────
+
+    def _build_logo(self) -> None:
+        """Insert the NeatPDF logo to the left of all menus."""
+        # QWidgetAction is not rendered on Wayland native menu bars.
+        # Logo is placed in the toolbar instead (see toolbar.py).
+        pass
 
     # ── Menu construction ─────────────────────────────────────────────────
 

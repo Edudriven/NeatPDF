@@ -16,13 +16,15 @@ from PySide6.QtWidgets import (
 )
 
 from config import APP_VERSION, ICONS_DIR, GITHUB_REPO
+from gui.logo_utils import get_icon_pixmap, get_logo_pixmap
 
 
 class AboutDialog(QDialog):
     """Simple About dialog showing logo, version, and links."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, theme: str = "dark") -> None:
         super().__init__(parent)
+        self._theme = theme
         self.setWindowTitle("About NeatPDF")
         self.setFixedSize(420, 280)
         self.setModal(True)
@@ -37,20 +39,15 @@ class AboutDialog(QDialog):
         # Logo (text logo if available, else icon)
         logo_label = QLabel()
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_path = ICONS_DIR / "neatpdf_logo.png"
-        icon_path = ICONS_DIR / "neatpdf_128.png"
-        if logo_path.exists():
-            pix = QPixmap(str(logo_path)).scaledToWidth(
-                280, Qt.TransformationMode.SmoothTransformation
-            )
+
+        pix = get_logo_pixmap(height=36, theme=self._theme)
+        if not pix.isNull():
             logo_label.setPixmap(pix)
-        elif icon_path.exists():
-            pix = QPixmap(str(icon_path)).scaled(
-                80, 80,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            logo_label.setPixmap(pix)
+        else:
+            # fallback to icon
+            icon_pix = get_icon_pixmap(size=64, theme=self._theme)
+            if not icon_pix.isNull():
+                logo_label.setPixmap(icon_pix)
         root.addWidget(logo_label)
 
         # Version

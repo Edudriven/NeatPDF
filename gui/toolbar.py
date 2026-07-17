@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QToolBar, QWidget
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QAction, QKeySequence, QPixmap
+from PySide6.QtWidgets import QLabel, QToolBar, QWidget, QWidgetAction
+
+from config import ICONS_DIR
+from gui.logo_utils import get_logo_pixmap
 
 log = logging.getLogger(__name__)
 
@@ -66,6 +69,11 @@ class AppToolBar(QToolBar):
             ext.setText(">>")
             ext.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
             ext.setToolTip("More actions")
+
+    def update_theme(self, theme: str) -> None:
+        """Call this when the app theme changes to re-render theme-sensitive widgets."""
+        self._update_logo_pixmap(theme)
+        self.restyle_extension_button()
 
     def childEvent(self, event) -> None:  # type: ignore[override]
         super().childEvent(event)
@@ -156,8 +164,28 @@ class AppToolBar(QToolBar):
             checkable=True,
         )
 
+    def _add_logo(self) -> None:
+        """Add the NeatPDF logo to the far left of the toolbar."""
+        self._logo_label = QLabel()
+        self._logo_label.setContentsMargins(6, 0, 8, 0)
+        self._update_logo_pixmap("dark")  # default; MainWindow calls update on theme change
+
+        wa = QWidgetAction(self)
+        wa.setDefaultWidget(self._logo_label)
+        self.addAction(wa)
+
+    def _update_logo_pixmap(self, theme: str) -> None:
+        """Re-render the logo for the given theme."""
+        pix = get_logo_pixmap(height=22, theme=theme)
+        if not pix.isNull():
+            self._logo_label.setPixmap(pix)
+        else:
+            self._logo_label.setText("<b>NeatPDF</b>")
+
     def _add_to_bar(self) -> None:
         """Add actions (and separators) to the toolbar in display order."""
+        self._add_logo()
+        self.addSeparator()
         self.addAction(self.action_open)
         self.addAction(self.action_save)
         self.addAction(self.action_save_as)

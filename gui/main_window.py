@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self._last_selected_page: int = -1
 
         self._build_window()
+        self._toolbar.update_theme(self._theme)   # set correct logo for saved theme
         self._restore_geometry()
         self._schedule_update_check()
         log.info("MainWindow initialised (theme=%s)", theme)
@@ -840,7 +841,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             apply_theme(app, self._theme)  # type: ignore[arg-type]
-        self._toolbar.restyle_extension_button()
+        self._toolbar.update_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme)
         log.info("Theme toggled to: %s", self._theme)
 
@@ -898,7 +899,7 @@ class MainWindow(QMainWindow):
 
     def _on_about(self) -> None:
         from gui.dialogs.about_dialog import AboutDialog
-        AboutDialog(self).exec()
+        AboutDialog(self, theme=self._theme).exec()
 
     def _on_check_updates_manual(self) -> None:
         """Triggered by Help → Check for Updates."""
