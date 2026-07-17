@@ -5,6 +5,7 @@ All hardcoded values live here. Import from this module; never hardcode
 paths or magic numbers elsewhere.
 """
 
+import sys as _sys
 from pathlib import Path
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -13,8 +14,23 @@ ROOT_DIR: Path = Path(__file__).parent.resolve()
 RESOURCES_DIR: Path = ROOT_DIR / "resources"
 THEMES_DIR: Path = RESOURCES_DIR / "themes"
 ICONS_DIR: Path = RESOURCES_DIR / "icons"
-OUTPUT_DIR: Path = ROOT_DIR / "output"
-LOG_DIR: Path = ROOT_DIR / "logs"
+
+# When frozen (AppImage / installer / portable), write user data to
+# ~/.local/share/NeatPDF on Linux or %APPDATA%\NeatPDF on Windows.
+# When running from source, keep everything local to the project root.
+def _user_data_dir() -> Path:
+    if getattr(_sys, "frozen", False):
+        import os as _os
+        if _sys.platform == "win32":
+            base = Path(_os.environ.get("APPDATA", Path.home()))
+        else:
+            base = Path(_os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+        return base / "NeatPDF"
+    return ROOT_DIR
+
+_DATA_DIR: Path = _user_data_dir()
+OUTPUT_DIR: Path = _DATA_DIR / "output"
+LOG_DIR: Path = _DATA_DIR / "logs"
 
 # ── Application metadata ──────────────────────────────────────────────────────
 
@@ -26,7 +42,6 @@ GITHUB_REPO: str = "Edudriven/NeatPDF"
 # ── Install mode ──────────────────────────────────────────────────────────────
 # Overridden at build time by PyInstaller via --add-data or spec file.
 # Values: "portable" | "installer" | "appimage" | "source"
-import sys as _sys
 
 def _detect_install_mode() -> str:
     # When frozen by PyInstaller, read the sentinel file bundled at build time
