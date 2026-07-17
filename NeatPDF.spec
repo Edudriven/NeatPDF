@@ -55,11 +55,11 @@ a = Analysis(
 
 # ── Write install mode sentinel ───────────────────────────────────────────────
 # We write a tiny file into the bundle so the app knows how it was packaged.
-import tempfile, shutil
+import tempfile
 
 _sentinel = Path(tempfile.mkdtemp()) / "install_mode.txt"
 _sentinel.write_text(INSTALL_MODE)
-a.datas.append((str(_sentinel), "."))   # lands as install_mode.txt in root
+a.datas.append((str(_sentinel), "install_mode.txt", "DATA"))
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
